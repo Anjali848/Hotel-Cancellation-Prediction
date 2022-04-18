@@ -1,0 +1,596 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+DATA EXPLORATION
+
+```{r}
+library('tidyverse')
+library('readr')
+
+rawData <- data.frame(read_csv('https://intro-datascience.s3.us-east-2.amazonaws.com/Resort01.csv'))
+str(rawData) 
+
+summary(rawData)
+#View(rawData)
+```
+
+
+```{r}
+#Check for NA values in all columns
+
+table(is.na(rawData$IsCanceled))
+table(is.na(rawData$LeadTime))
+table(is.na(rawData$StaysInWeekendNights))
+table(is.na(rawData$StaysInWeekNights))
+table(is.na(rawData$Adults))
+
+table(is.na(rawData$Children))
+table(is.na(rawData$Babies))
+table(is.na(rawData$Meal))
+table(is.na(rawData$Country))
+table(rawData$Country)#NULL values
+
+
+table(is.na(rawData$MarketSegment))
+table(is.na(rawData$IsRepeatedGuest))
+table(is.na(rawData$PreviousCancellations))
+table(is.na(rawData$PreviousBookingsNotCanceled))
+table(is.na(rawData$ReservedRoomType))
+table(is.na(rawData$AssignedRoomType))
+table(is.na(rawData$BookingChanges))
+table(is.na(rawData$DepositType))
+table(is.na(rawData$CustomerType))
+table(is.na(rawData$RequiredCarParkingSpaces))
+table(is.na(rawData$TotalOfSpecialRequests))
+
+```
+DATA CLEANING
+
+```{r}
+#Data Cleaning
+
+
+#Data cleansing Meal and Country column, change lead time column name
+#to days since booking
+str(rawData)
+
+table(rawData$Meal)
+#1169 undefined in Meal columN
+
+table(rawData$Country)
+table(rawData$MarketSegment)
+
+table(rawData$ReservedRoomType)
+table(rawData$AssignedRoomType)
+table(rawData$DepositType)
+table(rawData$CustomerType)
+hist(rawData$LeadTime,breaks=5)
+```
+
+```{r}
+#Cleaning
+#Filter out rows where the number of adults is less than one  
+newData1 <- rawData[select(rawData,Adults) >= 1,]
+
+
+
+#To standardize the dataset values, we replaced rows that contain “Undefined” 
+#values for the “meal” column with “SC”, as they mean the same thing 
+#(mentioned by the contributor of the dataset).
+newData1$Meal[newData1$Meal=="Undefined"]<-"SC"
+table(newData1$Meal)
+
+#The Country attribute has NULL values that are filtered out
+newData2 <- newData1[select(newData1,Country)!="NULL",]
+table(newData2$Country)
+
+#Rename column LeadTime to make it easier to understand the context of the 
+#column
+
+colnames(newData2)[2] <- "DaysSinceBooking"
+
+
+rough <- newData2[newData2$StaysInWeekendNights==0 & 
+              newData2$StaysInWeekNights==0 ,  ]
+
+newData3 <- anti_join(newData2,rough)
+
+
+table(newData3$Country)
+
+
+hotelData <- newData3
+str(hotelData)
+table(hotelData$ModifiedCountryCode)
+#View(hotelData)
+```
+
+DATA TRANSFORMATION
+```{r}
+
+newData3$ModifiedCountryCode<- newData3$Country
+newData3$ModifiedCountryCode[newData3$ModifiedCountryCode=="CN"] <- "CHN"
+table(hotelData$ModifiedCountryCode)
+
+#New detractor column created
+hotelData$Detractor <- as.factor(hotelData$PreviousCancellations>12)
+hotelData <- newData3
+str(hotelData)
+table(hotelData$ModifiedCountryCode)
+```
+
+
+```{r}
+#install.packages("viridis")
+library(viridis)
+
+#Percentage of Bookings vs Cancellation Status
+#Here we are figuring out the persentage of canccellations in the whole dataset
+#about 28%
+
+counts3 <- table(hotelData$IsCanceled)
+library(RColorBrewer)
+coul <- brewer.pal(5, "Pastel1") 
+barplot(prop.table(counts3) * 100, main="Percentage of Bookings vs Cancellation Status",
+  xlab="Hotel Cancellations (0- not canceled, 1- canceled)",ylab="Percentage of bookings",col=coul,
+  legend = rownames(counts3), beside=TRUE)
+
+
+```
+
+```{r}
+#Boxplot and histogram of the numerical variables 
+str(hotelData)
+
+#DaysSinceBooking
+g1 <- ggplot(hotelData, aes(x=factor(IsCanceled), y=DaysSinceBooking, fill=IsCanceled)) + geom_boxplot(fill="lightblue")
+g1
+
+ggplot(data = hotelData )+
+       aes(x = as.factor(IsCanceled), y = DaysSinceBooking) + 
+    geom_bar(stat = 'identity', position = 'dodge',fill=rgb(1,0.8,0.8,0.7))
+```
+
+
+```{r}
+#StaysInWeekendNights
+g2 <- ggplot(hotelData, aes(x=factor(IsCanceled), y=StaysInWeekendNights, fill=IsCanceled)) + geom_boxplot(fill="lightblue")
+g2
+ggplot(data = hotelData )+
+       aes(x = as.factor(IsCanceled), y = StaysInWeekendNights) + 
+    geom_bar(stat = 'identity', position = 'dodge',fill=rgb(1,0.8,0.8,0.7))
+```
+
+
+```{r}
+#StaysInWeekNights
+g3 <- ggplot(hotelData, aes(x=factor(IsCanceled), y=StaysInWeekNights, fill=IsCanceled)) + geom_boxplot(fill="lightblue")
+g3
+ggplot(data=hotelData,aes(StaysInWeekNights)) +geom_histogram(binwidth=3)
+```
+
+
+```{r}
+#Adults
+g4 <- ggplot(hotelData, aes(x=factor(IsCanceled), y=Adults, fill=IsCanceled)) + geom_boxplot(fill="lightblue")
+g4
+ggplot(data = hotelData )+
+       aes(x = as.factor(IsCanceled), y = Adults) + 
+    geom_bar(stat = 'identity', position = 'dodge',fill=rgb(1,0.8,0.8,0.7))
+```
+
+
+```{r}
+#PreviousCancellations
+g5 <- ggplot(hotelData, aes(x=factor(IsCanceled), y=PreviousCancellations, fill=IsCanceled)) + geom_boxplot(fill="lightblue")
+g5
+ggplot(data = hotelData )+
+       aes(x = as.factor(IsCanceled), y = PreviousBookingsNotCanceled) + 
+    geom_bar(stat = 'identity', position = 'dodge',,fill=rgb(1,0.8,0.8,0.7))
+```
+
+
+```{r}
+#PreviousBookingsNotCanceled
+g6 <- ggplot(hotelData, aes(x=factor(IsCanceled), y=PreviousBookingsNotCanceled, fill=IsCanceled)) + geom_boxplot(fill="lightblue")
+g6
+ggplot(data = hotelData )+
+       aes(x = as.factor(IsCanceled), y = PreviousBookingsNotCanceled) + 
+    geom_bar(stat = 'identity', position = 'dodge',,fill=rgb(1,0.8,0.8,0.7))
+```
+
+
+```{r}
+#Children
+g7 <- ggplot(hotelData, aes(x=factor(IsCanceled), y=Children, fill=IsCanceled)) + geom_boxplot(fill="lightblue")
+g7
+ggplot(data = hotelData )+
+       aes(x = as.factor(IsCanceled), y = Children) + 
+    geom_bar(stat = 'identity', position = 'dodge',fill=rgb(1,0.8,0.8,0.7))
+```
+
+
+```{r}
+#Babies
+g8 <- ggplot(hotelData, aes(x=factor(IsCanceled), y=Babies, fill=IsCanceled)) + geom_boxplot(fill="lightblue")
+g8
+
+ggplot(data = hotelData )+
+       aes(x = as.factor(IsCanceled), y = Babies) + 
+    geom_bar(stat = 'identity', position = 'dodge',fill=rgb(1,0.8,0.8,0.7))
+```
+
+
+```{r}
+#BookingChanges
+g9 <- ggplot(hotelData, aes(x=factor(IsCanceled), y=BookingChanges, fill=IsCanceled)) + geom_boxplot(fill="lightblue")
+g9
+
+ggplot(data = hotelData )+
+       aes(x = as.factor(IsCanceled), y = BookingChanges) + 
+    geom_bar(stat = 'identity', position = 'dodge',fill=rgb(1,0.8,0.8,0.7))
+```
+
+
+```{r}
+#RequiredCarParkingSpaces
+g10 <- ggplot(hotelData, aes(x=factor(IsCanceled), y=RequiredCarParkingSpaces, fill=IsCanceled)) + geom_boxplot(fill="lightblue")
+g10
+ggplot(data = hotelData )+
+       aes(x = as.factor(IsCanceled), y = RequiredCarParkingSpaces) + 
+    geom_bar(stat = 'identity', position = 'dodge',fill=rgb(1,0.8,0.8,0.7))
+```
+
+
+```{r}
+#TotalOfSpecialRequests
+g11 <- ggplot(hotelData, aes(x=factor(IsCanceled), y=TotalOfSpecialRequests, fill=IsCanceled)) + geom_boxplot(fill="lightblue")
+g11
+ggplot(data = hotelData )+
+       aes(x = as.factor(IsCanceled), y = TotalOfSpecialRequests) + 
+    geom_bar(stat = 'identity', position = 'dodge',fill=rgb(1,0.8,0.8,0.7))
+
+```
+
+```{r}
+#dividing data into subsets of cancelled and not cancelled
+
+str(hotelData)
+cancelData <- hotelData[hotelData$IsCanceled==1,]
+notCancelData <- hotelData[hotelData$IsCanceled==0,]
+
+```
+
+```{r}
+#Map visualization
+
+#install.packages('rworldmap')
+library('rworldmap')
+
+cancelData$IsCanceled < -as.factor(cancelData$IsCanceled)
+help(joinCountryData2Map)
+sPDF <- joinCountryData2Map(hotelData,joinCode = "ISO3",nameJoinColumn = "ModifiedCountryCode",mapResolution = "coarse",nameCountryColumn = "ModifiedCountryCode",verbose=TRUE)
+
+#CN and GIB country codes could not be mapped
+
+
+mapParams <- mapCountryData( sPDF, nameColumnToPlot="IsCanceled",addLegend = FALSE)
+
+
+#The above map gives a color graded country wise representation based on the number of days since booking incase of cancelled bookings 
+
+par(mar=c(2,2,2,2))
+worldmap <- joinCountryData2Map(cancelData, joinCode="ISO3", nameJoinColumn="Country",)
+map<-mapCountryData(worldmap, nameColumnToPlot='DaysSinceBooking',  catMethod="logFixedWidth", colourPalette=c('white','green','red','yellow','blue','black','orange'))
+```
+
+
+
+```{r}
+
+#Bar-plots
+#Identifying trends between the different categories in categorical type data in Cancelled Bookings
+
+#Meal type
+ggplot(cancelData, aes(x=Meal)) +
+  geom_bar(color="blue", fill=rgb(0.1,0.4,0.5,0.7) )
+
+
+#Market Segment
+ggplot(cancelData, aes(x=MarketSegment)) +
+  geom_bar(color="blue", fill=rgb(0.1,0.4,0.5,0.7) )
+
+#DepositType
+ggplot(cancelData, aes(x=DepositType)) +
+  geom_bar(color="blue", fill=rgb(0.1,0.4,0.5,0.7) )
+
+#CustomerType
+ggplot(cancelData, aes(x=CustomerType)) +
+  geom_bar(color="blue", fill=rgb(0.1,0.4,0.5,0.7) )
+
+#Assigned Room Types
+counts6 <- table(cancelData$AssignedRoomType)
+library(RColorBrewer)
+coul <- brewer.pal(5, "Set2") 
+barplot(prop.table(counts6) * 100, main="Percentage of Bookings vs AssignedRoomType",
+  xlab="Assigned Room Types",ylab="Percentage of bookings",col=viridis(10),
+  legend = rownames(counts6), beside=TRUE)
+
+
+```
+
+Market segment frequency in entire dataset
+```{r}
+library(ggplot2)
+
+
+
+table1<-table(hotelData$MarketSegment) 
+table1
+barplot(table1,col=magma(6),main="Market Segment",xlab="Different Market Segments",ylab="Frequency",border="black",
+        legend.text = rownames(table1),args.legend = list(x = "top"))
+
+```
+
+Not Cancelled/ Cancelled Rooms W.R.T Market Segment
+```{r}
+
+
+df9<-hotelData[,c('IsCanceled','MarketSegment')]
+table2<-table(df9$IsCanceled,df9$MarketSegment)
+barplot(table2,beside = T, col=c("#edf8b1","#7fcdbb"),main="Cancelation Status vs Market Segments",xlab="Different Market Segments",ylab="Frequency",border="black",
+        cex.names =.6,legend.text =rownames(table2),args.legend = list(x = "top",title="IsCanceled"))
+
+```
+
+Market segment frequency wrt StaysInWeekendNights and StaysInWeekNights
+could or could not be cancelled
+
+```{r}
+#Not Cancelled/ Cancelled Rooms W.R.T Meals
+
+df10<-hotelData[,c('IsCanceled','Meal')]
+table3<-table(df10$IsCanceled,df10$Meal)
+barplot(table3,beside = T, col=c("#edf8b1","#7fcdbb"),main="Cancelation Status vs Meals",xlab="Meals",ylab="Frequency",border="black",
+        cex.names =.8,legend.text =rownames(table3),args.legend = list(x = "top",title="IsCanceled"))
+
+```
+
+Cancelled Rooms market segment frequency wrt StaysInWeekendNights and StaysInWeekNights
+
+```{r}
+df3<-cancelData[,c('StaysInWeekendNights','StaysInWeekNights','MarketSegment')]
+dfplot3<-pivot_longer(df3, -MarketSegment, names_to="variable", values_to="value")
+ggplot(dfplot3,aes(x = MarketSegment,y = value)) + 
+    geom_bar(aes(fill = variable),stat = "identity",position = "dodge") +ggtitle("Cancelled Rooms Market Segment for Stays during Weekday or Weekend")+ xlab("Cancelled Rooms Market Segments")+ylab("Frequency")
+
+```
+
+Meal frequency in entire Hotel data
+
+```{r}
+table4<-table(hotelData$Meal) 
+table4
+barplot(table4,col=viridis(4),main="Meals Frequency",xlab="Different Meals",ylab="Frequency",border="black",
+        legend.text = rownames(table4),args.legend = list(x = "top"))
+
+```
+
+Not Cancelled/ Cancelled Rooms W.R.T Meals
+
+```{r}
+df10<-hotelData[,c('IsCanceled','Meal')]
+table3<-table(df10$IsCanceled,df10$Meal)
+barplot(table3,beside = T, col=magma(2),main="Not Cancelled/ Cancelled Rooms W.R.T Meals",xlab="Meals",ylab="Frequency",border="black",
+        cex.names =.8,legend.text =rownames(table3),args.legend = list(x = "top",title="IsCanceled"))
+
+```
+
+Meal frequency wrt StaysInWeekendNights and StaysInWeekNights
+could or could not be cancelled
+
+```{r}
+df4<-hotelData[,c('StaysInWeekendNights','StaysInWeekNights','Meal')]
+dfplot4<-pivot_longer(df4, -Meal, names_to="variable", values_to="value")
+ggplot(dfplot4,aes(x = Meal,y = value)) + 
+    geom_bar(aes(fill = variable),stat = "identity",position = "dodge") +ggtitle("Meals for Stays during Weekday or Weekend")+ xlab("Meals")+ylab("Frequency")
+```
+
+Cancelled Rooms Meals frequency wrt StaysInWeekendNights and StaysInWeekNights
+```{r}
+dim(cancelData)
+df5<-cancelData[,c('StaysInWeekendNights','StaysInWeekNights','Meal')]
+dfplot5<-pivot_longer(df5, -Meal, names_to="Legend", values_to="value")
+ggplot(dfplot5,aes(x = Meal,y = value)) +   geom_bar(aes(fill = Legend),stat = "identity",position = "dodge") +ggtitle("StaysInWeekendNights & StaysInWeekNights vs Meals in Canceled Bookings")+ xlab("Cancelled Rooms Meals")+ylab("Frequency")
+
+
+```
+DepositType frequency 
+
+```{r}
+
+table6<-table(hotelData$DepositType) 
+table6
+barplot(table6,col=rainbow(3),main="Deposit Type Frequency",xlab="Deposit Types",ylab="Frequency",border="black",
+        legend.text = rownames(table6),args.legend = list(x = "top"))
+```
+
+Not Cancelled/ Cancelled Rooms W.R.T Deposit type
+
+```{r}
+df11<-hotelData[,c('IsCanceled','DepositType')]
+table5<-table(df11$IsCanceled,df11$DepositType)
+barplot(table5,beside = T, col=rainbow(2),main="Not Cancelled/ Cancelled Rooms W.R.T Deposit Type",xlab="Deposit Type",ylab="Frequency",border="black",
+        cex.names =.8,legend.text =rownames(table5),args.legend = list(x = "top",title="IsCanceled"))
+
+```
+
+DepositType frequency wrt StaysInWeekendNights and StaysInWeekNights
+could or could not be cancelled
+
+```{r}
+
+df7<-hotelData[,c('StaysInWeekendNights','StaysInWeekNights','DepositType')]
+dfplot7<-pivot_longer(df7, -DepositType, names_to="variable", values_to="value")
+ggplot(dfplot7,aes(x = DepositType,y = value)) + 
+    geom_bar(aes(fill = variable),stat = "identity",position = "dodge") +ggtitle("Deposit Types for Stays during Weekday or Weekend")+ xlab("Deposit Types")+ylab("Frequency")
+
+```
+
+Cancelled DepositType frequency wrt StaysInWeekendNights and StaysInWeekNights
+
+```{r}
+df8<-cancelData[,c('StaysInWeekendNights','StaysInWeekNights','DepositType')]
+dfplot8<-pivot_longer(df8, -DepositType, names_to="variable", values_to="value")
+ggplot(dfplot8,aes(x = DepositType,y = value)) + 
+    geom_bar(aes(fill = variable),stat = "identity",position = "dodge") +ggtitle("Cancelled Deposit Types for Stays during Weekday or Weekend")+ xlab("Cancelled Rooms Deposit Types")+ylab("Frequency")
+
+
+```
+
+RequiredCarParkingSpaces in Cancelled and Not Cancelled Data
+
+```{r}
+table(cancelData$RequiredCarParkingSpaces)
+table(hotelData$RequiredCarParkingSpaces)
+
+Graph11<-hotelData[,c('IsCanceled','RequiredCarParkingSpaces')]
+Graph11<-table(Graph11$IsCanceled,Graph11$RequiredCarParkingSpaces)
+barplot(Graph11,beside = T, col=(c("#edf8b1","#7fcdbb")),main="Required Parking Spaces on Cancelled and Not Cancelled Data",xlab="Required Parking Spaces",ylab="Frequency",border="black",
+        cex.names =.8,legend.text =rownames(Graph11),args.legend = list(x = "top",title="IsCanceled"))
+
+```
+
+
+NPS (Detractor and Promotor)
+```{r}
+
+table(hotelData$PreviousCancellations)
+
+vectorforNPS<- hotelData$PreviousCancellations
+totalNPS<-length(vectorforNPS)
+
+hotelData$Detractor<- "FALSE"
+hotelData$Detractor[hotelData$PreviousCancellations>12] <- "TRUE"
+table(hotelData$Detractor)
+
+vectorDetractor<- as.vector(hotelData$Detractor=="TRUE")
+numDetractor<-sum(vectorDetractor)
+numDetractor
+
+hotelData$Promotor<- "FALSE"
+hotelData$Promotor[hotelData$Detractor == "FALSE"] <- "TRUE"
+table(hotelData$Promotor)
+
+vectorPromotor<- as.vector(hotelData$Promotor=="TRUE")
+numPromotor<-sum(vectorPromotor)
+numPromotor
+
+nps<- (numPromotor/totalNPS - numDetractor/totalNPS) *100
+nps
+
+```
+**MODELING**
+
+
+Logistic Regression
+```{r}
+#Logistic Regression
+
+
+modelLog <- glm(IsCanceled ~DaysSinceBooking+StaysInWeekendNights+StaysInWeekendNights+StaysInWeekNights+PreviousCancellations+PreviousBookingsNotCanceled+BookingChanges+TotalOfSpecialRequests+MarketSegment+CustomerType+RequiredCarParkingSpaces+TotalOfSpecialRequests+DepositType+ReservedRoomType+Meal,family=binomial(link='logit'),data=hotelData)
+
+summary(modelLog)
+
+
+```
+
+Support Vector Machines
+
+(1)
+```{r}
+#Support Vector Machines
+
+mergedDF <- hotelData
+str(mergedDF)
+
+mergedDF$IsCanceled <- as.factor(mergedDF$IsCanceled)
+#mergedDF$Meal <- as.factor(mergedDF$Meal)
+#mergedDF$MarketSegment <- as.factor(mergedDF$MarketSegment)
+str(mergedDF)
+library(caret)
+library(kernlab)
+library(arules)
+library(arulesViz)
+library(tidyverse)
+set.seed(111)
+
+
+mergedDF2 <- mergedDF %>% select(IsCanceled,DaysSinceBooking,StaysInWeekendNights,Meal,MarketSegment,IsRepeatedGuest,PreviousCancellations,DepositType,CustomerType,RequiredCarParkingSpaces,TotalOfSpecialRequests,BookingChanges)
+
+trainList <- createDataPartition(y=mergedDF2$IsCanceled, p=.70, list=FALSE)
+
+trainData <- mergedDF2 [trainList,]
+testData <- mergedDF2 [-trainList,]
+
+svm.model <- train(IsCanceled ~ ., data = trainData, method="svmRadial", trControl=trainControl(method="none"), preProcess=c("center", "scale"))
+svm.model
+
+predict_Val <- predict(svm.model, newdata = trainData)
+#predict_Val
+table(predict_Val,trainData$IsCanceled)
+conf_Matrix <- confusionMatrix(predict_Val, trainData$IsCanceled)
+
+fourfoldplot(table(predict_Val,trainData$IsCanceled))
+```
+
+
+
+Association Rule Mining
+
+```{r}
+##Association Rule Mining
+
+library(arules)
+library(arulesViz)
+
+#summary(mergedDF3)
+mergedDFnew <- mergedDF2
+str(mergedDFnew)
+mergedDFnew$IsCanceled <- as.factor(mergedDFnew$IsCanceled)
+mergedDFnew$DaysSinceBooking <- as.factor(mergedDFnew$DaysSinceBooking)
+mergedDFnew$StaysInWeekendNights <- as.factor(mergedDFnew$StaysInWeekendNights)
+#mergedDFnew$StaysInWeekNights <- as.factor(mergedDFnew$StaysInWeekNights)
+#mergedDFnew$Adults <- as.factor(mergedDFnew$Adults)
+#mergedDFnew$Children <- as.factor(mergedDFnew$Children)
+mergedDFnew$Meal <- as.factor(mergedDFnew$Meal)
+mergedDFnew$MarketSegment <- as.factor(mergedDFnew$MarketSegment)
+mergedDFnew$IsRepeatedGuest <- as.factor(mergedDFnew$IsRepeatedGuest)
+mergedDFnew$PreviousCancellations <- as.factor(mergedDFnew$PreviousCancellations)
+mergedDFnew$DepositType <- as.factor(mergedDFnew$DepositType)
+mergedDFnew$CustomerType <- as.factor(mergedDFnew$CustomerType)
+mergedDFnew$RequiredCarParkingSpaces <- as.factor(mergedDFnew$RequiredCarParkingSpaces)
+mergedDFnew$TotalOfSpecialRequests <- as.factor(mergedDFnew$TotalOfSpecialRequests)
+mergedDFnew$RequiredCarParkingSpaces <- as.factor(mergedDFnew$RequiredCarParkingSpaces)
+mergedDFnew$BookingChanges <- as.factor(mergedDFnew$BookingChanges)
+
+
+
+
+set.seed(111)
+mergedDFnew <- as(mergedDFnew,"transactions")
+
+itemFreq <- itemFrequency(mergedDFnew)
+
+str(itemFreq)
+sortedData <- sort(itemFreq)
+itemFreqPlot <- itemFrequencyPlot(mergedDFnew, topN=20)
+ 
+rules <- apriori(mergedDFnew, parameter=list(supp=0.042, conf=0.9), control=list(verbose=F), appearance=list(default="lhs",rhs=("IsCanceled=1")))
+inspect(rules)
+plot(rules,method="paracoord")
+```
+
+
